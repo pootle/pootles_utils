@@ -14,7 +14,7 @@ Vars form a tree structure (single parent nodes), so each Var has a parent excep
 import logging, sys, pathlib
 from collections import OrderedDict
 from inspect import signature
-import ptree
+from pootlestuff import ptree
 
 class groupVar(ptree.treeob):
     """
