@@ -13,38 +13,52 @@ Vars form a tree structure (single parent nodes), so each Var has a parent excep
 """
 import logging, sys, pathlib
 from collections import OrderedDict
+from enum import Enum
 from inspect import signature
 from pootlestuff import ptree
+
+class loglvls(Enum):
+    VAST    = logging.DEBUG-1 
+    DEBUG   = logging.DEBUG
+    INFO    = logging.INFO
+    WARN    = logging.WARN
+    ERROR   = logging.ERROR
+    FATAL   = logging.FATAL
+    NONE    = 0
 
 class groupVar(ptree.treeob):
     """
     the base for all things made of multiple fields
     """
-    def __init__(self, value={}, loglvl=None, **kwargs):
+    def __init__(self, value={}, loglvl=loglvls.NONE, **kwargs):
         """
         For non-leaf nodes of the tree, handles setup and access to groups of Vars
 
         value           : a dict with the initial values for the fields, the dict keys should be a (sub)set of the childdefs names
         """
-        if loglvl is None:
+        if loglvl is None or loglvl is loglvls.NONE:
             self.loglvl=1000
         else:
-            self.loglvl=loglvl
-        self.prevals=value
+            self.loglvl=loglvl.value if isinstance(loglvl, loglvls) else loglvl
+        if not value is None and len(value) > 0:
+            self.prevals=value
         super().__init__(**kwargs)
-        del self.prevals
+        if hasattr(self, 'prevals'):
+            del self.prevals
 
-    def makeChild(self, _cclass, name, **kwargs):
+    def makeChild(self, _cclass, name, value=None, **kwargs):
+        if hasattr(self, 'prevals') and name in self.prevals and not value is None:
+            print('WARNING preval is %s value is %s for child %s' % (self.prevals[name], value, name)) 
         try:
             if issubclass(_cclass, (groupVar, baseVar)) and hasattr(self,'prevals') and name in self.prevals:
                 return _cclass(name=name, parent=self, app=self.app, value=self.prevals[name], **kwargs)
             else:
-                return _cclass(name=name, parent=self, app=self.app, **kwargs)
+                return _cclass(name=name, parent=self, app=self.app, value=value, **kwargs)
         except:
             print('child constructor fails for xxVar (%s) in (%s), with params %s' % (name, self.getHierName(), kwargs))
             raise
 
-    def getValue(self, simple=False):
+    def getValue(self):
         """
         returns a dict with the values for all children
         """
@@ -72,6 +86,8 @@ class groupVar(ptree.treeob):
         uses the value dict to update the value of all children, value can contain a subset of the children
         """
         if agent in self.app.agents:
+            if isinstance(value, loglvls):
+                self.loglvl=value.value
             for n, v in value.items():
                 assert n in self
                 self.setValue(v, agent)
@@ -82,24 +98,24 @@ class groupVar(ptree.treeob):
         return "{} is a {}".format(self.name, type(self).__name__)
 
     def log(self, level, *args, **kwargs):
-        if level >= self.loglvl:
+        if (isinstance(level,loglvls) and level.value >= self.loglvl) or level >= self.loglvl:
             self.app.log(level, *args, **kwargs)
 
 class rootVar(groupVar):
     """
     the root of the tree has a couple of extras
     """
-    def __init__(self, agentlist, logformat, loglvl, **kwargs):
+    def __init__(self, *, agentlist, logformat, loglvl, **kwargs):
         if len(agentlist) == 0:
             raise ValueError('agent list cannot be empty')
         self.agents=agentlist
         self.logformat=logformat
-        if loglvl is None:
+        if loglvl is None or loglvl is loglvls.NONE:
             self.loglvl=1000
         else:
             self.logger=logging.getLogger(__loader__.name+'.'+type(self).__name__)
-            self.loglvl=loglvl
-            self.logger.setLevel(loglvl)
+            self.loglvl=loglvl.value if isinstance(loglvl, loglvls) else loglvl
+            self.logger.setLevel(self.loglvl)
         super().__init__(**kwargs)
 
     def log(self, level, msg, *args, **kwargs):
@@ -115,7 +131,7 @@ class baseVar(ptree.treeob):
     """
     def __init__(self, *, value=None, fallbackValue=None,
                 onChange=None, formatString='{value:}', enabled=True, filters=None,
-                loglvl=None, **kwargs):
+                loglvl=loglvls.NONE, **kwargs):
         """
         value           : the initial value for the var (if invalid the fallbackValue is used)
         
@@ -143,9 +159,10 @@ class baseVar(ptree.treeob):
 
         various Exceptions can be raised.
         """
-        self.loglvl=1000 if loglvl is None else int(loglvl)
-        self._lvvalue=None               # this is the place we keep the value of the variable - always access
-                                          # via _getVar / _setVar
+        self.loglvl=1000 if loglvl is None or loglvl is loglvls.NONE else loglvl.value if isinstance(loglvl, loglvls) else int(loglvl)
+        if not hasattr(self, '_lvvalue'):
+            self._lvvalue=None           # this is the place we keep the value of the variable - always access
+                                         # via _getVar / _setVar
         super().__init__(**kwargs)
         self.onChange={}                # setup empty notify set then set the value before adding notifications
         self.enabled=enabled
@@ -167,7 +184,7 @@ class baseVar(ptree.treeob):
         except:
             pass
         try:
-            self.setValue(fallbackValue,agent=self.app.agents[0])
+            self.setValue(fallbackValue, agent=self.app.agents[0])
         except:
             self.app.criticalreport('setup var {}, fallbackValue {} failed'.format(self.getHierName(), fallbackValue))
             raise
@@ -255,8 +272,8 @@ class baseVar(ptree.treeob):
             return self.formatString.format(value=self.getValue(),var=self)
         except:
             emsg='FAIL in field {} of type {} using format string >{}< with  value={}'.format(self.getHierName(), type(self).__name__, self.formatString, self.getValue())
-            if self.loglvl <= 70:
-                self.log(logging.CRITICAL, emsg)
+            if self.loglvl <= loglvlvs.FATAL:
+                self.log(logging.FATAL, emsg)
             else:
                 print(emsg)
             raise
@@ -438,7 +455,7 @@ class enumVar(baseVar):
     """
     def __init__(self, name, vlist, fallbackValue=None, mode='wrap', **kwargs):
         """
-        name        : name for superclass used for exception messages
+        name        : name - passed to superclass used here for exception messages
 
         vlist       : the list of values the var can have
 
@@ -452,6 +469,7 @@ class enumVar(baseVar):
         if mode in ('clamp', 'wrap', 'abs'):
             self.mode=mode
             self.vlist=vlist
+            self._lvvalue=vlist[0]
             super().__init__(name=name,  fallbackValue=vlist[0] if fallbackValue is None else fallbackValue, **kwargs)
         else:
             raise ValueError('mode {} not in ('','','') for var {}')
