@@ -18,37 +18,47 @@ def netinf():
             'mac_addr'  : mac address
             plus any other parts found on the inet line as key / value pairs
     """
-    co = subprocess.Popen(['ifconfig'], stdout = subprocess.PIPE)
+    co = subprocess.run(['/sbin/ifconfig'], capture_output=True, text=True)
     ifaces={}
-    aline=co.stdout.readline()
-    while len(aline) > 0:
-        if aline[0] in (32,10):
-            print('unexpected line:', aline)
-            aline=co.stdout.readline()
+    alines=co.stdout.split('\n')
+    def lineget():
+        if alines:
+            return alines.pop(0)+'\n'
         else:
-            inameb, rest = aline.split(b':', maxsplit=1)
-            iname=inameb.decode()
+            return ''
+    aline=lineget()
+    while aline:
+        if aline[0] in (' ','\n'):
+            print('unexpected line:', aline)
+            aline=lineget()
+        else:
+            iname, rest = aline.split(':', maxsplit=1)
             ifaceinfo={}
             ifaces[iname] = ifaceinfo
-            aline=co.stdout.readline()
-            while aline[0] == 32:
-                lparts = [p.strip() for p in aline.strip().split(b' ') if not p.strip() == b'']
-                if lparts[0]==b'inet':
+            aline=lineget()
+            while aline and aline[0] == ' ':
+                lparts = [p.strip() for p in aline.strip().split(' ') if not p.strip() == '']
+                if lparts[0]=='inet':
                     _sectadd(ifaceinfo,'IP4',_ip4parse(lparts))
-                elif lparts[0]==b'inet6':
+                elif lparts[0]=='inet6':
                     pass
-                elif lparts[0] == b'ether':
-                    _sectadd(ifaceinfo, 'mac_addr', lparts[1].decode())
-                elif lparts[0] in (b'loop', b'RX', b'TX'):
+                elif lparts[0] == 'ether':
+                    _sectadd(ifaceinfo, 'mac_addr', lparts[1])
+                elif lparts[0] in ('loop', 'RX', 'TX'):
                     pass
                 else:
                     print('???', lparts)
                     print(lparts[0])
-                aline=co.stdout.readline()
+                aline=lineget()
             if len(aline) == 0:
                 pass # loop will exit - we're done
-            elif aline[0]== 10:
-                aline=co.stdout.readline() # skip to next interface
+            else:
+                while aline and aline[0]== '\n':
+                    aline=lineget() # skip to next interface
+    alines=co.stderr.split('\n')
+    for aline in alines:
+        if len(aline) > 1:
+            print('-x->', aline)
     return ifaces
 
 def _sectadd(dd, key, val):
@@ -58,9 +68,9 @@ def _sectadd(dd, key, val):
         dd[key].append(val)
 
 def _ip4parse(lparts):
-    ip4inf = {'peer': lparts[1].decode()}
+    ip4inf = {'peer': lparts[1]}
     for x in range(2, len(lparts)-1, 2):
-        ip4inf[lparts[x].decode()] = lparts[x+1].decode()
+        ip4inf[lparts[x]] = lparts[x+1]
     return ip4inf
 
 def allIP4():
