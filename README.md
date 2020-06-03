@@ -11,8 +11,15 @@ Various utility modules to do stuff I find useful in different projects.
 * pvars - managed variables for apps using tree structuring (from ptree) and with functionailty to help with abstracting gui from app logic
 
 ## installation
+Install extras needed for this
 
-Once downloaded switch to the new directory and 
+> sudo apt install git python3-distutils
+
+Then clone with git (if you want to easily keep the package updated)
+
+> git clone https://github.com/pootle/pootles_utils.git
+
+Once cloned switch to the new directory and 
 
 > sudo python3 setup.py install
 
