@@ -411,6 +411,7 @@ class watchablesmart(watchablegroup):
                 self.log(loglvls.INFO,'logging level is %s' % loglevel)
             if isinstance(value, str):
                 spath=pathlib.Path(value).expanduser()
+                self.settingsfrom=spath
                 if spath.is_file():
                     try:
                         with spath.open('r') as spo:
