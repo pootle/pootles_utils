@@ -476,20 +476,23 @@ class watchablepigpio(watchablesmart):
     """
     a root class that adds in pigpio setup to watchablesmart
     """
-    def __init__(self, app=None, **kwargs):
+    def __init__(self, app=None, pigp=None, **kwargs):
         """
         if the app has a pio attribute, (an instance of pigpio.pi), that is used otherwise one is set up.
         """
         if not app is None and hasattr(app,'pio'):
             self.pio=app.pio
             self.mypio=False
-        else:
+        elif pigp is None:
             import pigpio
             ptest=pigpio.pi()
             if not ptest.connected:
                 raise ValueError('pigpio failed to initialise')
             self.pio=ptest
             self.mypio=True
+        else:
+            self.pio=pigp
+            self.mypio=False
         if not self.pio.connected:
             raise ValueError('pigpio is not connected')
         super().__init__(app=app, **kwargs)

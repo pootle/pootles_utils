@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """
-Startup for web service to process command line arguments and start up the web server.
+Startup for web service to process command line arguments and start up the web server and the back end app.
 
-The main web service is normally (inherits from) http.server.HTTPServer), and the message handler from http.server.BaseHTTPRequestHandler.
+The main web service normally inherits from http.server.HTTPServer), and the message handler from http.server.BaseHTTPRequestHandler.
 The classes used are defined in the config file - which is the only mandatory argument.
 
 Optionally, the web server can be started in a thread, so a python prompt  is available (when run from an interactive shell), allowing
@@ -10,7 +10,8 @@ the objects to be accessed from the prompt.
 
 A KeyboardInterrupt should stop the entire service running and exit.
 
-The configuration file (a python module) controls the initial setup of the web server and provides a setup function 
+The configuration file (a python module) controls the initial setup of the web server and provides a setup function which starts
+the app(s) and returns the web server's config (a dict)
  """
 import sys, argparse, pathlib, importlib, logging, http.server, threading
 
@@ -42,14 +43,19 @@ def runmain():
     toplog=logging.getLogger()
     toplog.setLevel(loglevel)
 
-    if args.consolelog is None:
+    if args.logfile and args.consolelog is None:
         print('no console log')
     else:
-        print('setting console log, loglevel', args.consolelog)
+        if args.consolelog is None:
+            print('setting console log to default (40)')
+            cloglvl=40
+        else:
+            print('setting console log, loglevel', args.consolelog)
+            cloglvl=args.consolelog
         chandler=logging.StreamHandler()
         if hasattr(configmodule, 'consolelogformat'):
             chandler.setFormatter(logging.Formatter(**configmodule.consolelogformat))
-        chandler.setLevel(args.consolelog)
+        chandler.setLevel(cloglvl)
         toplog.addHandler(chandler)
  
     logfile=args.logfile if args.logfile else config.logfile if hasattr(configmodule,'logfile') else None
@@ -67,9 +73,8 @@ def runmain():
     assert hasattr(configmodule, 'setup')
     assert hasattr(configmodule, 'httpserverclass')
     assert hasattr(configmodule, 'httprequestclass')
-    assert hasattr(configmodule, 'settingsfile')
-
-    config=configmodule.setup(settings=args.settings if hasattr(args,'settings') else configmodule.settingsfile)
+    
+    config=configmodule.setup(settings=args.settings if hasattr(args,'settings') else None)
     assert isinstance(config, dict)
     
     ips=netinf.allIP4()
