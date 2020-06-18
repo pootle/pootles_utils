@@ -395,6 +395,13 @@ class watchablesmart(watchablegroup):
     
     for a component of an app:
         passes logging calls up to the app.
+        
+    value:  for the top level (app is None), if a string, this is the file name for json file which should yield a dict with the settings to be applied in construction
+            otherwise id should be a dict with the settings
+            
+            lower levels always expect a dict
+    
+    app:    If app is None, this node is the app, otherwise it should be the app object (which provides logging and save /  restore settings
     """
     def __init__(self, value, app=None, loglevel=loglvls.INFO, **kwargs):
         if app==None: # this is the real (top level) app
@@ -409,29 +416,8 @@ class watchablesmart(watchablegroup):
                 self.logger.addHandler(chandler)
                 self.logger.setLevel(loglevel.value)
                 self.log(loglvls.INFO,'logging level is %s' % loglevel)
-            if isinstance(value, str):
-                spath=pathlib.Path(value).expanduser()
-                self.settingsfrom=spath
-                if spath.is_file():
-                    try:
-                        with spath.open('r') as spo:
-                            self.startsettings=json.load(spo)
-                        self.log(loglvls.INFO,'app settings loaded from file %s' % spath)
-                    except:
-                        self.log(loglvls.ERROR,'failed to load settings from %s - default values used' % spath, exc_info=True, stack_info=True)
-                        self.startsettings={}
-                else:
-                    self.log(loglvls.INFO,'app settings file %s not found - default values used' % spath)
-                    self.startsettings={}
-            elif hasattr(value,'keys'):
-                self.startsettings=value
-                self.log(loglvls.INFO,'using settings from passed object')
-            elif value is None:
-                self.log(loglvls.INFO,'settings not specified, default values used')
-                self.startsettings={}
-            else:
-                self.log(loglvls.INFO,'setings not processed from passed %s' % type(values).__name__)
-                self.startsettings={}
+            self.startsettings, lmsg, self.settingsfrom = loadsettings(value)
+            self.log(loglvls.INFO, lmsg)
         else:
             self.app=app
             self.agentclass=app.agentclass
@@ -545,3 +531,22 @@ class watchableApp(object):
         if self.logger:
             self.logger.log(level.value, msg, *args, **kwargs)
 
+def loadsettings(value):
+    if isinstance(value, str):
+        spath=pathlib.Path(value).expanduser()
+        settingsfrom=spath
+        if spath.is_file():
+            try:
+                with spath.open('r') as spo:
+                    startsettings=json.load(spo)
+                return startsettings, 'app settings loaded from file %s' % spath, spath
+            except:
+                return {}, 'failed to load settings from %s - default values used' % spath, spath
+        else:
+            return {}, 'app settings file %s not found - default values used' % str(spath), spath
+    elif hasattr(value,'keys'):
+        return value, 'using settings from passed object', None
+    elif value is None:
+        return {}, 'settings not specified, default values used', None
+    else:
+        return {}, 'setings not processed from passed %s' % type(values).__name__, None
