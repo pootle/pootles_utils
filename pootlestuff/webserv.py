@@ -24,7 +24,7 @@ def runmain():
     clparse.add_argument('-v', '--consolelog', type=int, help='level of logging for the console log (stderr), if absent / 0 there is no console log')
     clparse.add_argument('-i', '--interactive', action='store_true', 
                     help='run webserver in separate thread to allow interaction with python interpreter from console while running')
-    clparse.add_argument('-s', "--settings', help='path to settings file for app's settings. Overrides settings file named in config file")
+    clparse.add_argument('-s', '--settings', help="path to settings file for app's settings. Overrides settings file named in config file")
     args=clparse.parse_args()
 
     if args.config is None:
