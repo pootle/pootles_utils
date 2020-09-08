@@ -374,6 +374,8 @@ class watchablegroup(object):
             vv=defn[2] if value is None else value
             return defn[1](app=self, value=vv, **params)
         except:
+            print('Exception in makeChild for class %s' % defn[1], ('using defn value (%s)' % defn[2]) if value is None else str(vv))
+            print('extra keyword args', params)
             print('input values:', value)
             self.log(loglvls.ERROR,'class %s exception making variable %s' % (type(self).__name__, defn[0]), exc_info=True, stack_info=True)
         return None
